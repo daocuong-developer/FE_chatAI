@@ -1,0 +1,225 @@
+{
+  "insert_document": [
+    {
+      "id": "1",
+      "doc_id": "uuid-mock-1",
+      "metadata": {
+        "describe": "Tài liệu mock"
+      },
+      "content": "Đây là văn bản mock",
+      "filename": "file_demo.txt",
+      "size": 1024
+    },
+    {
+      "id": "cecf",
+      "metadata": {
+        "describe": "Tài liệu thử nghiệm"
+      },
+      "content": "Đây là nội dung văn bản",
+      "filename": "file_demo.txt",
+      "size": 1234
+    },
+    {
+      "id": "b03a",
+      "metadata": {
+        "describe": "hnfgnhng"
+      },
+      "content": "import java.util.Scanner;\r\nimport java.util.ArrayList;\r\n\r\nclass HangHoa{\r\n    private String maHang , tenHang;\r\n    private double donGia, soLuong;\r\n    \r\n    public HangHoa(){\r\n        this.maHang=\"\";\r\n        this.tenHang=\"\";\r\n        this.donGia=0;\r\n        this.soLuong=0;\r\n    }\r\n\r\n    public HangHoa(String maHang, String tenHang, double donGia, double soLuong) {\r\n        this.maHang = maHang;\r\n        this.tenHang = tenHang;\r\n        this.donGia = donGia;\r\n        this.soLuong = soLuong;\r\n    }\r\n\r\n    public String getMaHang() {\r\n        return maHang;\r\n    }\r\n\r\n    public String getTenHang() {\r\n        return tenHang;\r\n    }\r\n\r\n    public double getDonGia() {\r\n        return donGia;\r\n    }\r\n\r\n    public double getSoLuong() {\r\n        return soLuong;\r\n    }\r\n\r\n    public void setMaHang(String maHang) {\r\n        this.maHang = maHang;\r\n    }\r\n\r\n    public void setTenHang(String tenHang) {\r\n        this.tenHang = tenHang;\r\n    }\r\n\r\n    public void setDonGia(double donGia) {\r\n        this.donGia = donGia;\r\n    }\r\n\r\n    public void setSoLuong(double soLuong) {\r\n        this.soLuong = soLuong;\r\n    }\r\n\r\n    public double tongTien(){\r\n        return donGia*soLuong;\r\n    }\r\n    @Override\r\n    public String toString() {\r\n        return \"maHang=\" + maHang + \", tenHang=\" + tenHang + \", donGia=\" + donGia + \", soLuong=\" + soLuong + \", Tong tien\"+tongTien();\r\n    }\r\n    \r\n    \r\n}\r\n\r\nclass ChucNang{\r\n    private final ArrayList<HangHoa> dshh;\r\n    \r\n    public ChucNang(){\r\n        dshh = new ArrayList<>();\r\n    }\r\n    public void nhapNV(){\r\n        Scanner sc = new Scanner(System.in);\r\n        System.out.print(\"Nhap ma hang: \");\r\n        String ma = sc.nextLine();\r\n        System.out.print(\"Nhap ho ten hang: \");\r\n        String ten = sc.nextLine();\r\n        System.out.print(\"Nhap don gia: \");\r\n        double dg= sc.nextDouble();\r\n        System.out.print(\"Nhap so luong: \");\r\n        double luong= sc.nextDouble();\r\n        \r\n        HangHoa hh= new HangHoa(ma, ten, dg, luong);\r\n        dshh.add(hh);\r\n    }\r\n    \r\n    public void hienThi(){\r\n        for(HangHoa hh: dshh){\r\n            System.out.print(\"Thong tin nhan vien: \");\r\n            System.out.println(hh.toString());\r\n        }\r\n    }\r\n    \r\n    public void timKiem(String maHang){\r\n        boolean timThay=false;\r\n        for(HangHoa hh: dshh){\r\n            if(hh.getMaHang().equals(maHang)){\r\n                System.out.print(\"Thong tin nhan vien tim kiem: \");\r\n                System.out.println(hh.toString());\r\n                timThay=true;\r\n            }\r\n        }\r\n        if(!timThay){\r\n            System.out.println(\"Khong tim thay nhan vien co ho ten: \"+maHang);\r\n        }\r\n    }\r\n    \r\n    \r\n    public void sapXep(){\r\n        dshh.sort((mh1,mh2)->mh1.getTenHang().compareToIgnoreCase(mh2.getTenHang()));\r\n    }\r\n}\r\npublic class ontap4 {\r\n    public static void main(String[] args) {\r\n        Scanner sc =new Scanner(System.in);\r\n        ChucNang ct = new ChucNang();\r\n        \r\n        while (true) {            \r\n            System.out.println(\"----------------MENU------------------\");\r\n            System.out.println(\"1.Nhap hang hoa\");\r\n            System.out.println(\"2.Hien thi hang hoa\");\r\n            System.out.println(\"3.Tim kiem hang hoa theo ma hang\");\r\n            System.out.println(\"6.Sap xep hang hoa\");\r\n            System.out.println(\"0.Thoat chuong trinh\");\r\n            System.out.print(\"Hay chon chuc nang: \");\r\n            \r\n            int luachon=Integer.parseInt(sc.nextLine());\r\n            switch (luachon) {\r\n                case 1:\r\n                    ct.nhapNV();\r\n                    break;\r\n                case 2:\r\n                    ct.hienThi();\r\n                    break;\r\n                case 3:\r\n                    System.out.print(\"Nhap ma hang hoa can tim: \");\r\n                    String ma = sc. nextLine();\r\n                    ct.timKiem(ma);\r\n                    break;\r\n                case 4:\r\n                    ct.sapXep();\r\n                    System.out.println(\"Danh sach hang hoa sau khi sap xep la:\");\r\n                    ct.hienThi();\r\n                    break;\r\n                case 0:\r\n                    System.out.println(\"Tam biet! Hen gap lai\");\r\n                    System.exit(0);\r\n                default:\r\n                    System.out.println(\"Lua chon khong dung! Hay chon lai\");\r\n            }\r\n        }\r\n    }\r\n}\r\n"
+    },
+    {
+      "id": "2dc4",
+      "metadata": {
+        "describe": "đây là file txt"
+      },
+      "content": "cường nè"
+    },
+    {
+      "id": "f678",
+      "metadata": {
+        "describe": "đây là file txt"
+      },
+      "content": "cường nè"
+    },
+    {
+      "id": "ef62",
+      "metadata": {
+        "describe": "đây là tôi"
+      },
+      "content": "cường nè"
+    },
+    {
+      "id": "ade9",
+      "metadata": {
+        "describe": "đây nè"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    },
+    {
+      "id": "a224",
+      "metadata": {
+        "describe": "đây nè"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    },
+    {
+      "id": "c74b",
+      "metadata": {
+        "describe": "cường đây"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    },
+    {
+      "id": "c1c0",
+      "metadata": {
+        "describe": "cường nè"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    },
+    {
+      "id": "0214",
+      "metadata": {
+        "describe": "cường đây"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    },
+    {
+      "id": "201d",
+      "metadata": {
+        "describe": "cuong day"
+      },
+      "content": "cường nè",
+      "file_name": "cường nè.txt",
+      "file_size": 12
+    }
+  ],
+  "rag_chat": [
+    {
+      "id": "1",
+      "session_id": "mock-session-1",
+      "message": "Câu trả lời từ bot dựa trên file mock",
+      "file_ids": [
+        "uuid-mock-1"
+      ]
+    },
+    {
+      "id": "fed5",
+      "session_id": "mock-session-1",
+      "message": "Năm 1999 có sự kiện gì",
+      "file_ids": [
+        "uuid-mock-1"
+      ]
+    },
+    {
+      "id": "38af",
+      "message": "xin chào",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "4a71",
+      "message": "xin chào",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "c55c",
+      "message": "xin chào",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "9eb2",
+      "message": "xin chào",
+      "file_ids": []
+    },
+    {
+      "id": "7881",
+      "message": "biết cường là ai ko",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "e0c3",
+      "message": "xin chào",
+      "file_ids": []
+    },
+    {
+      "id": "8f8c",
+      "message": "xin chao",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "7691",
+      "message": "chao ban",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "4a9a",
+      "message": "xin chào",
+      "file_ids": [
+        null
+      ]
+    },
+    {
+      "id": "9491",
+      "message": "xin chào",
+      "file_ids": [
+        null
+      ]
+    }
+  ],
+  "chat": [
+    {
+      "id": "1",
+      "session_id": "mock-session-1",
+      "message": "Câu trả lời chat thường (mock)"
+    },
+    {
+      "id": "4d40",
+      "session_id": "mock-session-1",
+      "message": "Xin chào"
+    },
+    {
+      "id": "8b6a",
+      "message": "xin chào"
+    },
+    {
+      "id": "a582",
+      "message": "chào bạn"
+    },
+    {
+      "id": "afff",
+      "message": "sự kiện năm 1999"
+    },
+    {
+      "id": "81ca",
+      "message": "sự kiện năm 1999"
+    }
+  ],
+  "get_doc_infor": [
+    {
+      "id": "1",
+      "doc_id": "uuid-mock-1",
+      "describe": "Tài liệu mock",
+      "content": null
+    }
+  ]
+}
