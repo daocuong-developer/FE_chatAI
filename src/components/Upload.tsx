@@ -66,7 +66,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
 
     try {
       const content = await selectedFile.text();
-      const response = await api.insertDocument(content, description.trim(), selectedFile.name, selectedFile.size);
+      const response = await api.insertDocument(content, description.trim(), selectedFile.name, selectedFile.size.toString());
 
       const newDocument: Document = {
         id: response.doc_id,

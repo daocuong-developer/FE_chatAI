@@ -13,6 +13,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div className={`flex gap-3 mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
+      {/* Avatar bot */}
       {!isUser && (
         <div className="flex-shrink-0">
           <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
@@ -20,7 +21,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         </div>
       )}
-      
+
+      {/* Nội dung tin nhắn */}
       <div className={`max-w-[80%] ${isUser ? 'order-first' : ''}`}>
         <div
           className={`rounded-lg px-4 py-2 ${
@@ -32,30 +34,41 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {isUser ? (
             <p className="text-sm leading-relaxed">{message.content}</p>
           ) : (
-            <div className="prose prose-sm max-w-none prose-pre:bg-gray-800 prose-pre:text-gray-100">
+            <div className="prose prose-sm max-w-none prose-pre:bg-gray-800 prose-pre:text-gray-100 prose-pre:p-3 prose-pre:rounded-lg">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  p: ({ children }) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
-                  code: ({ inline, children }) => (
-                    inline ? (
-                      <code className="bg-gray-200 px-1 py-0.5 rounded text-xs">{children}</code>
-                    ) : (
-                      <code className="block">{children}</code>
-                    )
-                  ),
-                }}
+                  p: ({ children }) => (
+                  <p className="text-sm leading-relaxed mb-2 last:mb-0">
+                    {children}
+                  </p>
+                ),
+                code: ({node, ...props}) =>
+                  (node && (node as any).inline) ? (
+                  <code className="bg-gray-200 px-1 py-0.5 rounded text-xs">
+                    {props.children}
+                  </code>
+                ) : (
+                <pre className="bg-gray-800 text-gray-100 p-2 rounded overflow-x-auto">
+                  <code>{props.children}</code>
+                </pre>
+                ),
+                br: () => <> </>, // bỏ hẳn thẻ <br />
+              }}
               >
-                {message.content}
-              </ReactMarkdown>
+              {message.content}
+            </ReactMarkdown>
             </div>
           )}
         </div>
+
+        {/* Thời gian */}
         <div className="text-xs text-gray-500 mt-1">
           {message.timestamp.toLocaleTimeString()}
         </div>
       </div>
 
+      {/* Avatar user */}
       {isUser && (
         <div className="flex-shrink-0">
           <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">

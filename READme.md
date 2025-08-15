@@ -1,0 +1,1 @@
+<ul><li>Đánh dấu lần đầu Việt Nam bắt giữ một giàn khoan nước ngoài.</li><li>Nhấn mạnh quyền chủ quyền biển của Việt Nam trong Biển Đông.</li><li>Tăng căng thẳng với Trung Quốc về quyền khai thác tài nguyên biển.</li></ul>
