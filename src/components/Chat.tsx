@@ -15,10 +15,74 @@ export function Chat({ documents }: ChatProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('rag');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // ✅ thêm state
+  const [isInitialized, setIsInitialized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeChat = chatSessions.find(session => session.id === activeChatId);
+
+  // Load dữ liệu từ localStorage khi component mount
+  useEffect(() => {
+    if (isInitialized) return;
+    
+    const savedChatSessions = localStorage.getItem('chatSessions');
+    const savedActiveChatId = localStorage.getItem('activeChatId');
+    const savedChatMode = localStorage.getItem('chatMode');
+    const savedSidebarOpen = localStorage.getItem('chatSidebarOpen');
+    
+    if (savedChatSessions) {
+      try {
+        const sessions = JSON.parse(savedChatSessions).map((session: any) => ({
+          ...session,
+          createdAt: new Date(session.createdAt),
+          messages: session.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }))
+        }));
+        setChatSessions(sessions);
+        
+        if (savedActiveChatId && sessions.find((s: ChatSession) => s.id === savedActiveChatId)) {
+          setActiveChatId(savedActiveChatId);
+        } else if (sessions.length > 0) {
+          setActiveChatId(sessions[0].id);
+        }
+      } catch (error) {
+        console.error('Error loading chat sessions:', error);
+      }
+    }
+    
+    if (savedChatMode) {
+      setChatMode(savedChatMode as ChatMode);
+    }
+    
+    if (savedSidebarOpen) {
+      setIsSidebarOpen(savedSidebarOpen === 'true');
+    }
+    
+    setIsInitialized(true);
+  }, []);
+
+  // Lưu dữ liệu vào localStorage khi có thay đổi
+  useEffect(() => {
+    if (!isInitialized) return;
+    localStorage.setItem('chatSessions', JSON.stringify(chatSessions));
+  }, [chatSessions, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    localStorage.setItem('activeChatId', activeChatId);
+  }, [activeChatId, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    localStorage.setItem('chatMode', chatMode);
+  }, [chatMode, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    localStorage.setItem('chatSidebarOpen', isSidebarOpen.toString());
+  }, [isSidebarOpen, isInitialized]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,10 +100,36 @@ export function Chat({ documents }: ChatProps) {
   };
 
   useEffect(() => {
-    if (chatSessions.length === 0) {
+    if (isInitialized && chatSessions.length === 0) {
       createNewChat();
     }
-  }, [chatSessions.length]);
+  }, [chatSessions.length, isInitialized]);
+
+  const deleteChat = (chatId: string) => {
+    if (chatSessions.length <= 1) {
+      // Nếu chỉ còn 1 chat, tạo chat mới thay vì xóa
+      createNewChat();
+      return;
+    }
+    
+    const updatedSessions = chatSessions.filter(session => session.id !== chatId);
+    setChatSessions(updatedSessions);
+    
+    if (activeChatId === chatId) {
+      setActiveChatId(updatedSessions[0].id);
+    }
+  };
+
+  const clearAllChats = () => {
+    if (confirm('Bạn có chắc chắn muốn xóa tất cả cuộc trò chuyện?')) {
+      setChatSessions([]);
+      setActiveChatId('');
+      localStorage.removeItem('chatSessions');
+      localStorage.removeItem('activeChatId');
+      // Tạo chat mới sau khi xóa tất cả
+      setTimeout(() => createNewChat(), 100);
+    }
+  };
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading || !activeChat) return;
@@ -156,6 +246,19 @@ export function Chat({ documents }: ChatProps) {
           Tạo chat mới
         </button>
       </div>
+      
+      {/* Xóa tất cả chat */}
+      {chatSessions.length > 0 && (
+        <div className="px-4 pb-4">
+          <button
+            onClick={clearAllChats}
+            className="w-full text-red-500 hover:text-red-700 text-sm py-2 transition-colors"
+          >
+            Xóa tất cả chat
+          </button>
+        </div>
+      )}
+      
       {/* Mode Selection */}
       <div className="p-4 border-b border-gray-200">
         <p className="text-sm font-medium text-gray-700 mb-3">Chế độ chat:</p>
@@ -200,7 +303,7 @@ export function Chat({ documents }: ChatProps) {
               activeChatId === session.id ? 'bg-blue-50 border-blue-200' : ''
             }`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 group">
               <MessageSquare size={16} className="text-gray-400" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate">{session.title}</p>
@@ -211,6 +314,18 @@ export function Chat({ documents }: ChatProps) {
                   {session.createdAt.toLocaleDateString()}
                 </p>
               </div>
+              {chatSessions.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteChat(session.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 p-1 transition-all"
+                  title="Xóa chat này"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </button>
         ))}
@@ -247,7 +362,7 @@ export function Chat({ documents }: ChatProps) {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4">
-          {activeChat?.messages.length === 0 ? (
+          {!activeChat || activeChat.messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Bot size={48} className="mb-4" />
               <h3 className="text-lg font-medium mb-2">Bắt đầu cuộc trò chuyện</h3>
