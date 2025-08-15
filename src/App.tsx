@@ -6,7 +6,26 @@ import { Document } from './types';
 
 function App() {
   const [activeTab, setActiveTab] = useState<'upload' | 'chat'>('upload');
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<Document[]>(() => {
+    // Khôi phục documents từ localStorage khi khởi tạo App
+    const saved = localStorage.getItem('selectedDocuments');
+    if (saved) {
+      try {
+        return JSON.parse(saved).map((doc: any) => ({
+          ...doc,
+          uploadedAt: new Date(doc.uploadedAt)
+        }));
+      } catch (error) {
+        console.error('Error loading documents:', error);
+      }
+    }
+    return [];
+  });
+
+  // Lưu documents vào localStorage mỗi khi thay đổi
+  React.useEffect(() => {
+    localStorage.setItem('selectedDocuments', JSON.stringify(documents));
+  }, [documents]);
 
   return (
     <div className="min-h-screen bg-gray-50">

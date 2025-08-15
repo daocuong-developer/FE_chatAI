@@ -20,9 +20,12 @@ export function Upload({ documents, setDocuments }: UploadProps) {
   const [uploadHistory, setUploadHistory] = useState<Document[]>([]);
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load dữ liệu từ localStorage khi component mount
   useEffect(() => {
+    if (isInitialized) return;
+    
     const savedHistory = localStorage.getItem('uploadHistory');
     const savedDocuments = localStorage.getItem('selectedDocuments');
     const savedSelectedIds = localStorage.getItem('selectedHistoryIds');
@@ -59,18 +62,23 @@ export function Upload({ documents, setDocuments }: UploadProps) {
         console.error('Error loading selected history IDs:', error);
       }
     }
+    
+    setIsInitialized(true);
   }, [setDocuments]);
 
   // Lưu dữ liệu vào localStorage khi có thay đổi
   useEffect(() => {
+    if (!isInitialized) return;
     localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
   }, [uploadHistory]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     localStorage.setItem('selectedDocuments', JSON.stringify(documents));
   }, [documents]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     localStorage.setItem('selectedHistoryIds', JSON.stringify(Array.from(selectedHistoryIds)));
   }, [selectedHistoryIds]);
 
