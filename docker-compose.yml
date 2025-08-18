@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Frontend React App
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # JSON Server (Mock API)
+  json-server:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./db.json:/app/db.json
+      - ./package.json:/app/package.json
+    ports:
+      - "8009:8009"
+    command: >
+      sh -c "
+        npm install -g json-server &&
+        json-server --watch db.json --port 8009 --host 0.0.0.0
+      "
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
