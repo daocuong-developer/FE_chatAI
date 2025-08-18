@@ -45,7 +45,7 @@ docker-compose up
 ```
 
 3. **Truy cập ứng dụng**
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3000 (Vite dev server)
 - API Mock: http://localhost:8009
 
 4. **Dừng ứng dụng**
@@ -116,7 +116,6 @@ npx json-server --watch db.json --port 8009
 ├── db.json                # Mock database
 ├── Dockerfile             # Docker configuration
 ├── docker-compose.yml     # Docker Compose configuration
-├── nginx.conf            # Nginx configuration
 └── README.md             # Documentation
 ```
 
@@ -193,7 +192,7 @@ GET /api/get_doc_infor?start_index=0&end_index=100&get_content=false
 ```bash
 # Thay đổi port trong docker-compose.yml
 ports:
-  - "3001:80"  # Thay vì 3000:80
+  - "3001:5173"  # Thay vì 3000:5173
 ```
 
 2. **API không kết nối được**
@@ -213,6 +212,7 @@ npm install
 - Kiểm tra Network tab để xem API calls
 - Xem localStorage trong Browser DevTools
 - Logs của Docker: `docker-compose logs -f`
+- Hot reload được bật trong Docker development mode
 
 ## Đóng góp
 
