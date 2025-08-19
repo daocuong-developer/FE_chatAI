@@ -217,10 +217,10 @@ export function Chat({ documents }: ChatProps) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
       {/* Sidebar */}
 <div
-  className={`bg-white border-r border-gray-200 flex flex-col relative transition-all duration-300 ease-in-out overflow-hidden`}
+  className={`bg-white/90 backdrop-blur-sm border-r border-white/30 flex flex-col relative transition-all duration-300 ease-in-out overflow-hidden shadow-xl`}
   style={{ width: isSidebarOpen ? '320px' : '0px' }}
 >
   {isSidebarOpen && (
@@ -230,7 +230,7 @@ export function Chat({ documents }: ChatProps) {
         <h2 className="font-semibold text-gray-700 text-lg">Danh sách chat</h2>
         <button
           onClick={() => setIsSidebarOpen(false)}
-          className="p-1 rounded hover:bg-gray-100"
+          className="p-1 rounded hover:bg-gray-100 transition-colors duration-200"
         >
           <X size={18} />
         </button>
@@ -240,7 +240,7 @@ export function Chat({ documents }: ChatProps) {
       <div className="p-4 border-b border-gray-200">
         <button
           onClick={createNewChat}
-          className="w-full flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          className="w-full flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-2 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
         >
           <Plus size={16} />
           Tạo chat mới
@@ -252,7 +252,7 @@ export function Chat({ documents }: ChatProps) {
         <div className="px-4 pb-4">
           <button
             onClick={clearAllChats}
-            className="w-full text-red-500 hover:text-red-700 text-sm py-2 transition-colors"
+            className="w-full text-red-500 hover:text-red-700 text-sm py-2 transition-all duration-200 hover:bg-red-50 rounded"
           >
             Xóa tất cả chat
           </button>
@@ -302,6 +302,11 @@ export function Chat({ documents }: ChatProps) {
             className={`w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 transition-colors ${
               activeChatId === session.id ? 'bg-blue-50 border-blue-200' : ''
             }`}
+            className={`w-full text-left p-3 border-b border-gray-100 transition-all duration-200 ${
+              activeChatId === session.id 
+                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm' 
+                : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50'
+            }`}
           >
             <div className="flex items-center gap-2 group">
               <MessageSquare size={16} className="text-gray-400" />
@@ -320,7 +325,7 @@ export function Chat({ documents }: ChatProps) {
                     e.stopPropagation();
                     deleteChat(session.id);
                   }}
-                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 p-1 transition-all"
+                  className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 p-1 transition-all duration-200 hover:bg-red-50 rounded"
                   title="Xóa chat này"
                 >
                   <X size={14} />
@@ -337,12 +342,12 @@ export function Chat({ documents }: ChatProps) {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+        <div className="bg-white/80 backdrop-blur-sm border-b border-white/30 p-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             {!isSidebarOpen && (
               <button
                 onClick={() => setIsSidebarOpen(true)}
-                className="p-1 rounded hover:bg-gray-100"
+                className="p-1 rounded hover:bg-gray-100 transition-colors duration-200"
               >
                 <Menu size={20} />
               </button>
@@ -396,7 +401,7 @@ export function Chat({ documents }: ChatProps) {
         </div>
 
         {/* Input Area */}
-        <div className="bg-white border-t border-gray-200 p-4">
+        <div className="bg-white/80 backdrop-blur-sm border-t border-white/30 p-4 shadow-lg">
           <div className="max-w-4xl mx-auto flex gap-3">
             <textarea
               ref={textareaRef}
@@ -414,7 +419,7 @@ export function Chat({ documents }: ChatProps) {
             <button
               onClick={sendMessage}
               disabled={!inputMessage.trim() || isLoading}
-              className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none transform hover:scale-105 disabled:transform-none"
             >
               <Send size={16} />
               Gửi

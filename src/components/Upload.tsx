@@ -202,8 +202,26 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     }
   };
 
+  const deleteFromHistory = (docId: string) => {
+    if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử?')) {
+      // Xóa khỏi lịch sử
+      const updatedHistory = uploadHistory.filter(doc => doc.id !== docId);
+      setUploadHistory(updatedHistory);
+      
+      // Xóa khỏi danh sách được chọn nếu có
+      setSelectedHistoryIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(docId);
+        return newSet;
+      });
+      
+      // Xóa khỏi documents được chọn cho RAG
+      setDocuments(documents.filter(doc => doc.id !== docId));
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6">
@@ -214,10 +232,10 @@ export function Upload({ documents, setDocuments }: UploadProps) {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
             {/* File Upload Area */}
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-300 ${
                 dragActive
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-gray-300 hover:border-gray-400'
+                  ? 'border-blue-400 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-lg'
+                  : 'border-gray-300 hover:border-blue-300 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50'
               }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -233,7 +251,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-2 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
               >
                 Chọn file
               </button>
@@ -251,7 +269,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
 
             {/* Selected File Info */}
             {selectedFile && (
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 mb-6 border border-blue-100">
                 <div className="flex items-center gap-3">
                   <File size={20} className="text-blue-500" />
                   <span className="font-medium text-gray-900">{selectedFile.name}</span>
@@ -281,7 +299,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
             <button
               onClick={handleUpload}
               disabled={!selectedFile || !description.trim() || isUploading}
-              className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
             >
               {isUploading ? (
                 <>
@@ -315,13 +333,13 @@ export function Upload({ documents, setDocuments }: UploadProps) {
 
           {/* Selected Documents for RAG */}
           {documents.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-lg shadow-lg border border-white/20 p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
                 Tài liệu được chọn cho RAG Chat ({documents.length})
               </h2>
               <div className="space-y-3">
                 {documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div key={doc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
                     <div className="flex items-center gap-3 flex-1">
                       <File size={20} className="text-green-600" />
                       <div className="flex-1 min-w-0">
@@ -334,7 +352,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                     </div>
                     <button
                       onClick={() => removeDocument(doc.id)}
-                      className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
+                      className="text-red-500 hover:text-red-700 p-1 rounded transition-all duration-200 hover:bg-red-50"
                       title="Bỏ chọn tài liệu"
                     >
                       <X size={16} />
@@ -348,7 +366,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
       </div>
 
       {/* History Sidebar */}
-      <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+      <div className="w-80 bg-white/90 backdrop-blur-sm border-l border-white/30 flex flex-col shadow-xl">
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
@@ -358,7 +376,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
           {uploadHistory.length > 0 && (
             <button
               onClick={clearHistory}
-              className="text-red-500 hover:text-red-700 text-sm"
+              className="text-red-500 hover:text-red-700 text-sm hover:bg-red-50 px-2 py-1 rounded transition-all duration-200"
               title="Xóa toàn bộ lịch sử"
             >
               Xóa tất cả
@@ -382,12 +400,11 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                     key={doc.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-all ${
                       isSelected
-                        ? 'bg-blue-50 border-blue-200 shadow-sm'
-                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-md'
+                        : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200 hover:from-gray-100 hover:to-blue-50 hover:border-blue-200'
                     }`}
-                    onClick={() => toggleHistorySelection(doc)}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3" onClick={() => toggleHistorySelection(doc)}>
                       <div className="flex-shrink-0 mt-1">
                         {isSelected ? (
                           <div className="w-5 h-5 bg-blue-500 rounded flex items-center justify-center">
@@ -413,6 +430,21 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Delete button */}
+                    <div className="flex justify-end mt-2 pt-2 border-t border-gray-200">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteFromHistory(doc.id);
+                        }}
+                        className="text-red-500 hover:text-red-700 text-xs px-2 py-1 rounded hover:bg-red-50 transition-all duration-200 flex items-center gap-1"
+                        title="Xóa khỏi lịch sử"
+                      >
+                        <X size={12} />
+                        Xóa
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -421,7 +453,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
         </div>
 
         {/* Footer Info */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-white/30 bg-gradient-to-r from-gray-50 to-blue-50">
           <div className="text-sm text-gray-600">
             <p>Tổng: {uploadHistory.length} file</p>
             <p>Đã chọn: {selectedHistoryIds.size} file</p>
