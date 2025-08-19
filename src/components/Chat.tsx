@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Plus, MessageSquare, Bot, RefreshCw, X, Menu } from 'lucide-react';
+import { Send, Plus, MessageSquare, Bot, RefreshCw, X, Menu, Mic, MicOff } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { Document, Message, ChatSession, ChatMode } from '../types';
 import { api } from '../utils/api';
@@ -16,6 +16,8 @@ export function Chat({ documents }: ChatProps) {
   const [chatMode, setChatMode] = useState<ChatMode>('rag');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // ✅ thêm state
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -83,6 +85,33 @@ export function Chat({ documents }: ChatProps) {
     if (!isInitialized) return;
     localStorage.setItem('chatSidebarOpen', isSidebarOpen.toString());
   }, [isSidebarOpen, isInitialized]);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'vi-VN';
+      
+      recognitionInstance.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInputMessage(prev => prev + transcript);
+        setIsListening(false);
+      };
+      
+      recognitionInstance.onerror = () => {
+        setIsListening(false);
+      };
+      
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+      
+      setRecognition(recognitionInstance);
+    }
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -209,12 +238,35 @@ export function Chat({ documents }: ChatProps) {
     }
   };
 
+  const toggleVoiceRecognition = () => {
+    if (!recognition) {
+      alert('Trình duyệt không hỗ trợ nhận dạng giọng nói');
+      return;
+    }
+    
+    if (isListening) {
+      recognition.stop();
+      setIsListening(false);
+    } else {
+      recognition.start();
+      setIsListening(true);
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   };
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [inputMessage]);
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
@@ -299,9 +351,6 @@ export function Chat({ documents }: ChatProps) {
           <button
             key={session.id}
             onClick={() => setActiveChatId(session.id)}
-            className={`w-full text-left p-3 hover:bg-gray-50 border-b border-gray-100 transition-colors ${
-              activeChatId === session.id ? 'bg-blue-50 border-blue-200' : ''
-            }`}
             className={`w-full text-left p-3 border-b border-gray-100 transition-all duration-200 ${
               activeChatId === session.id 
                 ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm' 
@@ -366,7 +415,7 @@ export function Chat({ documents }: ChatProps) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-32">
           {!activeChat || activeChat.messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500">
               <Bot size={48} className="mb-4" />
@@ -400,30 +449,70 @@ export function Chat({ documents }: ChatProps) {
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="bg-white/80 backdrop-blur-sm border-t border-white/30 p-4 shadow-lg">
-          <div className="max-w-4xl mx-auto flex gap-3">
+        {/* ChatGPT-style Floating Input Area */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto p-4">
+            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-2">
+              <div className="flex items-end gap-3">
+                {/* Voice Recognition Button */}
+                <button
+                  onClick={toggleVoiceRecognition}
+                  disabled={!recognition}
+                  className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+                    isListening
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                  } ${!recognition ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                  title={isListening ? 'Đang nghe...' : 'Nhấn để nói'}
+                >
+                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                </button>
+
+                {/* Text Input */}
             <textarea
               ref={textareaRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Nhập tin nhắn của bạn..."
+                  placeholder="Nhập tin nhắn hoặc nhấn mic để nói..."
               rows={1}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 px-4 py-3 bg-transparent border-none resize-none focus:outline-none placeholder-gray-500 text-gray-900 max-h-32 overflow-y-auto"
               style={{
-                minHeight: '40px',
-                maxHeight: '120px',
+                    minHeight: '24px',
               }}
             />
+
+                {/* Send Button */}
             <button
               onClick={sendMessage}
               disabled={!inputMessage.trim() || isLoading}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none transform hover:scale-105 disabled:transform-none"
+                  className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+                    inputMessage.trim() && !isLoading
+                      ? 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105 shadow-lg'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                  title="Gửi tin nhắn"
             >
-              <Send size={16} />
-              Gửi
+                  <Send size={20} />
             </button>
+          </div>
+            </div>
+            
+            {/* Status indicators */}
+            <div className="flex justify-center mt-2">
+              {isListening && (
+                <div className="flex items-center gap-2 text-red-500 text-sm">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                  Đang nghe...
+                </div>
+              )}
+              {isLoading && (
+                <div className="flex items-center gap-2 text-blue-500 text-sm">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  AI đang trả lời...
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
