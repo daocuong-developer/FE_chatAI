@@ -17,70 +17,72 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     message: string;
   }>({ type: null, message: '' });
   const [dragActive, setDragActive] = useState(false);
+  // Thay đổi: uploadHistory giờ sẽ lưu toàn bộ dữ liệu từ API
   const [uploadHistory, setUploadHistory] = useState<Document[]>([]);
+  // Thay đổi: selectedHistoryIds giờ sẽ mặc định chọn tất cả các ID từ API
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load dữ liệu từ localStorage khi component mount
+  // Load dữ liệu TỪ API khi component mount
   useEffect(() => {
     if (isInitialized) return;
-    
-    const savedHistory = localStorage.getItem('uploadHistory');
-    const savedDocuments = localStorage.getItem('selectedDocuments');
-    const savedSelectedIds = localStorage.getItem('selectedHistoryIds');
-    
-    if (savedHistory) {
+
+    const loadData = async () => {
+      let remoteHistory: Document[] = [];
       try {
-        const history = JSON.parse(savedHistory).map((doc: any) => ({
-          ...doc,
-          uploadedAt: new Date(doc.uploadedAt)
-        }));
-        setUploadHistory(history);
+        const apiResponse = await api.getDocInfor(0, 100, false);
+console.log("API raw:", apiResponse);
+
+const remoteDocs = Array.isArray(apiResponse) 
+  ? apiResponse 
+  : (Array.isArray(apiResponse.documents) ? apiResponse.documents : []);
+
+        remoteHistory = remoteDocs.map((doc: any) => {
+          // Xử lý uploadedAt: nếu là string thì chuyển sang Date, nếu không có thì dùng new Date()
+          let uploadedAt: Date;
+          if (doc.uploadedAt) {
+            uploadedAt = typeof doc.uploadedAt === 'string' ? new Date(doc.uploadedAt) : doc.uploadedAt;
+          } else if (doc.created_at) {
+            uploadedAt = typeof doc.created_at === 'string' ? new Date(doc.created_at) : doc.created_at;
+          } else {
+            uploadedAt = new Date();
+          }
+          return {
+            id: doc.id || doc.doc_id,
+            name: doc.name || doc.file_name || 'Tên không xác định',
+            description: doc.description || (doc.metadata && doc.metadata.describe) || 'Mô tả không có',
+            uploadedAt,
+          };
+        }).sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
       } catch (error) {
-        console.error('Error loading upload history:', error);
+        console.error('Error fetching documents from API:', error);
+        setUploadStatus({
+          type: 'error',
+          message: 'Không thể tải danh sách tài liệu từ máy chủ.',
+        });
+        // Nếu có lỗi, vẫn cần hiển thị một danh sách trống để tránh lỗi giao diện
+        setUploadHistory([]);
+        setDocuments([]);
+        setIsInitialized(true);
+        return;
       }
-    }
 
-    if (savedDocuments) {
-      try {
-        const docs = JSON.parse(savedDocuments).map((doc: any) => ({
-          ...doc,
-          uploadedAt: new Date(doc.uploadedAt)
-        }));
-        setDocuments(docs);
-      } catch (error) {
-        console.error('Error loading selected documents:', error);
-      }
-    }
+      // Cập nhật cả lịch sử và tài liệu đã chọn với toàn bộ danh sách từ API
+      setUploadHistory(remoteHistory);
+      setDocuments(remoteHistory);
+      
+      // Tự động chọn tất cả các file vừa tải về
+      const allIds = new Set(remoteHistory.map(doc => doc.id));
+      setSelectedHistoryIds(allIds);
+      
+      setIsInitialized(true);
+    };
 
-    if (savedSelectedIds) {
-      try {
-        const ids = JSON.parse(savedSelectedIds);
-        setSelectedHistoryIds(new Set(ids));
-      } catch (error) {
-        console.error('Error loading selected history IDs:', error);
-      }
-    }
-    
-    setIsInitialized(true);
-  }, [setDocuments]);
+    loadData();
+  }, [setDocuments, isInitialized]); // Thêm isInitialized vào dependency array
 
-  // Lưu dữ liệu vào localStorage khi có thay đổi
-  useEffect(() => {
-    if (!isInitialized) return;
-    localStorage.setItem('uploadHistory', JSON.stringify(uploadHistory));
-  }, [uploadHistory]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    localStorage.setItem('selectedDocuments', JSON.stringify(documents));
-  }, [documents]);
-
-  useEffect(() => {
-    if (!isInitialized) return;
-    localStorage.setItem('selectedHistoryIds', JSON.stringify(Array.from(selectedHistoryIds)));
-  }, [selectedHistoryIds]);
+  // Xóa các useEffect liên quan đến localStorage vì không còn sử dụng
 
   const handleFileSelect = (file: File) => {
     if (file.type !== 'text/plain') {
@@ -91,9 +93,10 @@ export function Upload({ documents, setDocuments }: UploadProps) {
       return;
     }
     setSelectedFile(file);
+    setDescription('');
     setUploadStatus({ type: null, message: '' });
   };
-
+  
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -138,12 +141,12 @@ export function Upload({ documents, setDocuments }: UploadProps) {
         uploadedAt: new Date(),
       };
 
-      // Thêm vào lịch sử
+      // Thêm vào lịch sử và tự động chọn tất cả các file mới
+      // Thay đổi: giờ sẽ thêm file mới vào cả 2 danh sách
       const updatedHistory = [newDocument, ...uploadHistory];
+      const updatedDocuments = [newDocument, ...documents];
       setUploadHistory(updatedHistory);
-
-      // Tự động thêm vào danh sách được chọn
-      setDocuments([...documents, newDocument]);
+      setDocuments(updatedDocuments);
       setSelectedHistoryIds(prev => new Set([...prev, newDocument.id]));
 
       setSelectedFile(null);
@@ -161,7 +164,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
       setIsUploading(false);
     }
   };
-
+  
   const removeDocument = (documentId: string) => {
     setDocuments(documents.filter(doc => doc.id !== documentId));
     setSelectedHistoryIds(prev => {
@@ -196,30 +199,38 @@ export function Upload({ documents, setDocuments }: UploadProps) {
       setUploadHistory([]);
       setSelectedHistoryIds(new Set());
       setDocuments([]);
-      localStorage.removeItem('uploadHistory');
-      localStorage.removeItem('selectedDocuments');
-      localStorage.removeItem('selectedHistoryIds');
     }
   };
+  
+  const deleteFromHistory = async (docId: string) => {
+    if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử và từ máy chủ?')) {
+      try {
+        await api.removeDocument(docId);
+        
+        const updatedHistory = uploadHistory.filter(doc => doc.id !== docId);
+        setUploadHistory(updatedHistory);
 
-  const deleteFromHistory = (docId: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử?')) {
-      // Xóa khỏi lịch sử
-      const updatedHistory = uploadHistory.filter(doc => doc.id !== docId);
-      setUploadHistory(updatedHistory);
-      
-      // Xóa khỏi danh sách được chọn nếu có
-      setSelectedHistoryIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(docId);
-        return newSet;
-      });
-      
-      // Xóa khỏi documents được chọn cho RAG
-      setDocuments(documents.filter(doc => doc.id !== docId));
+        setSelectedHistoryIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(docId);
+          return newSet;
+        });
+
+        setDocuments(documents.filter(doc => doc.id !== docId));
+        
+        setUploadStatus({
+          type: 'success',
+          message: 'Tài liệu đã được xóa thành công khỏi máy chủ và lịch sử.',
+        });
+      } catch (error) {
+        console.error('Lỗi khi xóa tài liệu:', error);
+        setUploadStatus({
+          type: 'error',
+          message: error instanceof Error ? `Không thể xóa tài liệu: ${error.message}` : 'Có lỗi xảy ra khi xóa tài liệu.',
+        });
+      }
     }
   };
-
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Main Content */}
@@ -393,6 +404,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
             </div>
           ) : (
             <div className="p-4 space-y-3">
+              {/* Sửa lại phần render để đảm bảo uploadHistory từ API luôn được hiển thị */}
               {uploadHistory.map((doc) => {
                 const isSelected = selectedHistoryIds.has(doc.id);
                 return (
@@ -418,6 +430,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                         <div className="flex items-center gap-2 mb-1">
                           <File size={14} className={isSelected ? 'text-blue-600' : 'text-gray-500'} />
                           <h3 className="font-medium text-sm text-gray-900 truncate">
+                            {/* Đảm bảo tên file luôn hiển thị đúng */}
                             {doc.name}
                           </h3>
                         </div>
@@ -425,8 +438,13 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                           {doc.description}
                         </p>
                         <div className="text-xs text-gray-500">
-                          <p>ID: {doc.id.substring(0, 8)}...</p>
-                          <p>{doc.uploadedAt.toLocaleDateString()} {doc.uploadedAt.toLocaleTimeString()}</p>
+                          <p>ID: {doc.id ? doc.id.substring(0, 8) : ''}...</p>
+                          <p>
+                            {/* Đảm bảo ngày upload luôn hiển thị đúng */}
+                            {doc.uploadedAt instanceof Date
+                              ? `${doc.uploadedAt.toLocaleDateString()} ${doc.uploadedAt.toLocaleTimeString()}`
+                              : ''}
+                          </p>
                         </div>
                       </div>
                     </div>
