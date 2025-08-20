@@ -110,4 +110,35 @@ export const api = {
     }
     return response.json();
   },
+
+// 5. Xóa văn bản
+  async removeDocument(docId: string): Promise<ApiResponse> {
+    // Kiểm tra xem docId có phải là UUID hợp lệ không
+    if (!isUuid(docId)) {
+      throw new Error('Invalid doc_id format. Must be a valid UUID.');
+    }
+
+    const url = `${API_BASE_URL}/remove_doc?doc_id=${docId}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      // Cố gắng đọc chi tiết lỗi nếu có
+      let detail = '';
+      try {
+        const errorData = await response.json();
+        detail = errorData?.detail ? ` – ${JSON.stringify(errorData.detail)}` : '';
+      } catch (e) {
+        // Bỏ qua nếu không thể phân tích JSON
+      }
+      throw new Error(`HTTP error! status: ${response.status}${detail}`);
+    }
+
+    // API xóa có thể trả về một đối tượng rỗng hoặc thông báo thành công
+    return response.json();
+  },
 };
