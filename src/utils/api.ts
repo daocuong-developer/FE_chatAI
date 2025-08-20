@@ -99,7 +99,7 @@ export const api = {
 
   // 4. Lấy danh sách văn bản đã đẩy
   async getDocInfor(startIndex = 0, endIndex = 100, getContent = false) {
-    const url = `${API_BASE_URL}/get_doc_infor?start_index=${startIndex}&end_index=${endIndex}&get_content=${getContent}`;
+    const url = `${API_BASE_URL}/insert_document`;
     const response = await fetch(url, {
       method: 'GET',
       headers: { accept: 'application/json' },
