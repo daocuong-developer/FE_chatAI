@@ -17,72 +17,91 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     message: string;
   }>({ type: null, message: '' });
   const [dragActive, setDragActive] = useState(false);
-  // Thay đổi: uploadHistory giờ sẽ lưu toàn bộ dữ liệu từ API
   const [uploadHistory, setUploadHistory] = useState<Document[]>([]);
-  // Thay đổi: selectedHistoryIds giờ sẽ mặc định chọn tất cả các ID từ API
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // Load dữ liệu TỪ API khi component mount
+  // Load dữ liệu từ API khi component mount
   useEffect(() => {
     if (isInitialized) return;
+    loadDocumentsFromAPI();
+  }, []);
 
-    const loadData = async () => {
-      let remoteHistory: Document[] = [];
-      try {
-        const apiResponse = await api.getDocInfor(0, 100, false);
-console.log("API raw:", apiResponse);
+  const loadDocumentsFromAPI = async () => {
+    setIsLoadingHistory(true);
+    try {
+      const apiResponse = await api.getDocInfor(0, 100, false);
+      console.log("API response:", apiResponse);
+      // Xử lý response từ API - có thể là array trực tiếp hoặc object chứa array
+      const remoteDocs = Array.isArray(apiResponse) 
+        ? apiResponse 
+        : (Array.isArray(apiResponse.documents) ? apiResponse.documents : []);
 
-const remoteDocs = Array.isArray(apiResponse) 
-  ? apiResponse 
-  : (Array.isArray(apiResponse.documents) ? apiResponse.documents : []);
+      const processedDocs = remoteDocs.map((doc: any) => {
+        // Xử lý uploadedAt từ nhiều trường có thể có
+        let uploadedAt: Date;
+        if (doc.uploadedAt) {
+          uploadedAt = typeof doc.uploadedAt === 'string' ? new Date(doc.uploadedAt) : doc.uploadedAt;
+        } else if (doc.created_at) {
+          uploadedAt = typeof doc.created_at === 'string' ? new Date(doc.created_at) : doc.created_at;
+        } else {
+          uploadedAt = new Date();
+        }
 
-        remoteHistory = remoteDocs.map((doc: any) => {
-          // Xử lý uploadedAt: nếu là string thì chuyển sang Date, nếu không có thì dùng new Date()
-          let uploadedAt: Date;
-          if (doc.uploadedAt) {
-            uploadedAt = typeof doc.uploadedAt === 'string' ? new Date(doc.uploadedAt) : doc.uploadedAt;
-          } else if (doc.created_at) {
-            uploadedAt = typeof doc.created_at === 'string' ? new Date(doc.created_at) : doc.created_at;
-          } else {
-            uploadedAt = new Date();
-          }
-          return {
-            id: doc.id || doc.doc_id,
-            name: doc.name || doc.file_name || 'Tên không xác định',
-            description: doc.description || (doc.metadata && doc.metadata.describe) || 'Mô tả không có',
-            uploadedAt,
-          };
-        }).sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
-      } catch (error) {
-        console.error('Error fetching documents from API:', error);
-        setUploadStatus({
-          type: 'error',
-          message: 'Không thể tải danh sách tài liệu từ máy chủ.',
-        });
-        // Nếu có lỗi, vẫn cần hiển thị một danh sách trống để tránh lỗi giao diện
-        setUploadHistory([]);
-        setDocuments([]);
-        setIsInitialized(true);
-        return;
+        return {
+          id: doc.id || doc.doc_id,
+          name: doc.name || doc.file_name || doc.filename || 'Tên không xác định',
+          description: doc.description || (doc.metadata && doc.metadata.describe) || 'Mô tả không có',
+          uploadedAt,
+        };
+      }).sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+
+      // Cập nhật state
+      setUploadHistory(processedDocs);
+      
+      // Load selected documents từ localStorage (nếu có)
+      const savedSelectedIds = localStorage.getItem('selectedDocumentIds');
+      if (savedSelectedIds) {
+        try {
+          const selectedIds = JSON.parse(savedSelectedIds);
+          const validSelectedIds = selectedIds.filter((id: string) => 
+            processedDocs.some(doc => doc.id === id)
+          );
+          setSelectedHistoryIds(new Set(validSelectedIds));
+          setDocuments(processedDocs.filter(doc => validSelectedIds.includes(doc.id)));
+        } catch (error) {
+          console.error('Error loading selected documents:', error);
+          // Fallback: chọn tất cả documents
+          const allIds = new Set(processedDocs.map(doc => doc.id));
+          setSelectedHistoryIds(allIds);
+          setDocuments(processedDocs);
+        }
+      } else {
+        // Nếu chưa có selection nào, mặc định chọn tất cả
+        const allIds = new Set(processedDocs.map(doc => doc.id));
+        setSelectedHistoryIds(allIds);
+        setDocuments(processedDocs);
       }
-
-      // Cập nhật cả lịch sử và tài liệu đã chọn với toàn bộ danh sách từ API
-      setUploadHistory(remoteHistory);
-      setDocuments(remoteHistory);
       
-      // Tự động chọn tất cả các file vừa tải về
-      const allIds = new Set(remoteHistory.map(doc => doc.id));
-      setSelectedHistoryIds(allIds);
-      
+    } catch (error) {
+      console.error('Error fetching documents from API:', error);
+      setUploadStatus({
+        type: 'error',
+        message: 'Không thể tải danh sách tài liệu từ máy chủ.',
+      });
+    } finally {
+      setIsLoadingHistory(false);
       setIsInitialized(true);
-    };
+    }
+  };
 
-    loadData();
-  }, [setDocuments, isInitialized]); // Thêm isInitialized vào dependency array
-
-  // Xóa các useEffect liên quan đến localStorage vì không còn sử dụng
+  // Lưu selected document IDs vào localStorage
+  useEffect(() => {
+    if (!isInitialized) return;
+    localStorage.setItem('selectedDocumentIds', JSON.stringify([...selectedHistoryIds]));
+  }, [selectedHistoryIds, isInitialized]);
 
   const handleFileSelect = (file: File) => {
     if (file.type !== 'text/plain') {
@@ -141,13 +160,17 @@ const remoteDocs = Array.isArray(apiResponse)
         uploadedAt: new Date(),
       };
 
-      // Thêm vào lịch sử và tự động chọn tất cả các file mới
-      // Thay đổi: giờ sẽ thêm file mới vào cả 2 danh sách
-      const updatedHistory = [newDocument, ...uploadHistory];
-      const updatedDocuments = [newDocument, ...documents];
-      setUploadHistory(updatedHistory);
-      setDocuments(updatedDocuments);
+      // Reload toàn bộ danh sách từ API để đảm bảo đồng bộ
+      await loadDocumentsFromAPI();
+      
+      // Tự động chọn file vừa upload
       setSelectedHistoryIds(prev => new Set([...prev, newDocument.id]));
+      
+      // Thêm vào documents nếu chưa có
+      if (!documents.find(d => d.id === newDocument.id)) {
+        setDocuments(prev => [newDocument, ...prev]);
+      }
+
 
       setSelectedFile(null);
       setDescription('');
@@ -205,17 +228,20 @@ const remoteDocs = Array.isArray(apiResponse)
   const deleteFromHistory = async (docId: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử và từ máy chủ?')) {
       try {
+        // Gọi API để xóa document
         await api.removeDocument(docId);
         
-        const updatedHistory = uploadHistory.filter(doc => doc.id !== docId);
-        setUploadHistory(updatedHistory);
-
+        // Reload danh sách từ API
+        await loadDocumentsFromAPI();
+        
+        // Cập nhật selection
         setSelectedHistoryIds(prev => {
           const newSet = new Set(prev);
           newSet.delete(docId);
           return newSet;
         });
-
+        
+        // Cập nhật documents
         setDocuments(documents.filter(doc => doc.id !== docId));
         
         setUploadStatus({
@@ -397,14 +423,18 @@ const remoteDocs = Array.isArray(apiResponse)
 
         {/* History List */}
         <div className="flex-1 overflow-y-auto">
-          {uploadHistory.length === 0 ? (
+          {isLoadingHistory ? (
+            <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4">
+              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p className="text-center">Đang tải danh sách tài liệu...</p>
+            </div>
+          ) : uploadHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4">
               <History size={48} className="mb-4 opacity-50" />
               <p className="text-center">Chưa có file nào được upload</p>
             </div>
           ) : (
             <div className="p-4 space-y-3">
-              {/* Sửa lại phần render để đảm bảo uploadHistory từ API luôn được hiển thị */}
               {uploadHistory.map((doc) => {
                 const isSelected = selectedHistoryIds.has(doc.id);
                 return (
@@ -430,7 +460,6 @@ const remoteDocs = Array.isArray(apiResponse)
                         <div className="flex items-center gap-2 mb-1">
                           <File size={14} className={isSelected ? 'text-blue-600' : 'text-gray-500'} />
                           <h3 className="font-medium text-sm text-gray-900 truncate">
-                            {/* Đảm bảo tên file luôn hiển thị đúng */}
                             {doc.name}
                           </h3>
                         </div>
@@ -440,7 +469,6 @@ const remoteDocs = Array.isArray(apiResponse)
                         <div className="text-xs text-gray-500">
                           <p>ID: {doc.id ? doc.id.substring(0, 8) : ''}...</p>
                           <p>
-                            {/* Đảm bảo ngày upload luôn hiển thị đúng */}
                             {doc.uploadedAt instanceof Date
                               ? `${doc.uploadedAt.toLocaleDateString()} ${doc.uploadedAt.toLocaleTimeString()}`
                               : ''}
@@ -475,6 +503,23 @@ const remoteDocs = Array.isArray(apiResponse)
           <div className="text-sm text-gray-600">
             <p>Tổng: {uploadHistory.length} file</p>
             <p>Đã chọn: {selectedHistoryIds.size} file</p>
+            <button
+              onClick={loadDocumentsFromAPI}
+              disabled={isLoadingHistory}
+              className="mt-2 text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1 transition-colors"
+            >
+              {isLoadingHistory ? (
+                <>
+                  <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  Đang tải...
+                </>
+              ) : (
+                <>
+                  <History size={12} />
+                  Làm mới
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
