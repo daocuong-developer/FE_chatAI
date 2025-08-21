@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw'; // Thêm dòng này
 import { User, Bot, Folder } from 'lucide-react';
 import { Message } from '../types';
 import { ChunkReference } from './ChunkReference';
+import { api } from '../utils/api';
 
 interface ChatMessageProps {
   message: Message;
@@ -14,17 +15,60 @@ interface ChatMessageProps {
 
 // Hàm parse chunk IDs từ text
 function parseChunkReferences(content: string) {
-  const chunkRegex = /\[\$([a-f0-9-]{36})\$\]/g;
+  // Regex để tìm pattern có nhiều chunk IDs: [$id1$, $id2$, $id3$]
+  const multiChunkRegex = /\[\$([a-f0-9-]{36})\$(?:,\s*\$([a-f0-9-]{36})\$)*\]/g;
+  // Regex để tìm chunk ID đơn lẻ: [$id$]
+  const singleChunkRegex = /\[\$([a-f0-9-]{36})\$\]/g;
+
   const parts = [];
   let lastIndex = 0;
-  let match;
 
-  while ((match = chunkRegex.exec(content)) !== null) {
-    // Thêm text trước chunk ID
+  // Đầu tiên xử lý pattern có nhiều chunk IDs
+  let match;
+  while ((match = multiChunkRegex.exec(content)) !== null) {
+    // Thêm text trước pattern
     if (match.index > lastIndex) {
       parts.push({
         type: 'text',
         content: content.slice(lastIndex, match.index)
+      });
+    }
+
+    // Extract tất cả chunk IDs từ pattern
+    const fullMatch = match[0];
+    const chunkIds = [...fullMatch.matchAll(/\$([a-f0-9-]{36})\$/g)].map(m => m[1]);
+
+    // Thêm từng chunk reference
+    chunkIds.forEach((chunkId, index) => {
+      parts.push({
+        type: 'chunk',
+        chunkId: chunkId
+      });
+      // Thêm dấu phay nếu không phải chunk cuối
+      if (index < chunkIds.length - 1) {
+        parts.push({
+          type: 'text',
+          content: ', '
+        });
+      }
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Reset regex để xử lý phần còn lại
+  multiChunkRegex.lastIndex = 0;
+
+  // Sau đó xử lý các single chunk còn lại trong phần text chưa được xử lý
+  const remainingContent = content.slice(lastIndex);
+  let remainingLastIndex = 0;
+
+  while ((match = singleChunkRegex.exec(remainingContent)) !== null) {
+    // Thêm text trước chunk ID
+    if (match.index > remainingLastIndex) {
+      parts.push({
+        type: 'text',
+        content: remainingContent.slice(remainingLastIndex, match.index)
       });
     }
 
@@ -34,14 +78,14 @@ function parseChunkReferences(content: string) {
       chunkId: match[1]
     });
 
-    lastIndex = match.index + match[0].length;
+    remainingLastIndex = match.index + match[0].length;
   }
 
   // Thêm text còn lại
-  if (lastIndex < content.length) {
+  if (lastIndex + remainingLastIndex < content.length) {
     parts.push({
       type: 'text',
-      content: content.slice(lastIndex)
+      content: content.slice(lastIndex + remainingLastIndex)
     });
   }
 
@@ -54,6 +98,38 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // Parse chunk references nếu là tin nhắn từ bot
   const parsedContent = !isUser ? parseChunkReferences(message.content) : null;
   const processedContent = message.content;
+
+  // Function để xử lý download file
+  const handleDownload = async (href: string, fileName: string) => {
+    try {
+      // Kiểm tra xem href có phải là doc_id (UUID) không
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (uuidRegex.test(href)) {
+        // Nếu là UUID, sử dụng API download
+        const blob = await api.downloadFile(href);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || `file-${href}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        // Nếu là URL thông thường, download trực tiếp
+        const link = document.createElement('a');
+        link.href = href;
+        link.download = fileName || 'file';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Không thể tải xuống file. Vui lòng thử lại.');
+    }
+  };
 
   return (
     <div className={`flex mb-6 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -96,10 +172,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             typeof children[0] === 'object' &&
                             children[0].type === 'a'
                           ) {
-                            return <div className="mb-2 last:mb-0 leading-relaxed">{children}</div>;
+                            return <div className="mb-2 last:mb-0">{children}</div>;
                           }
                           // Đoạn văn thông thường - sử dụng block element như trường hợp không có chunk
-                          return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>;
+                          // return <p className="mb-2 last:mb-0">{children}</p>;
                         },
 
                         // Unordered list
@@ -153,12 +229,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         ),
                         a: ({ href, children }) => {
                           const isFile = /\.(txt|pdf|docx|xlsx|pptx|zip|rar|json|html)$/i.test(href || '');
-                          if (isFile) {
+                          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                          const isDownloadable = isFile || uuidRegex.test(href || '');
+
+                          if (isDownloadable) {
                             return (
-                              <a
-                                href={href}
-                                download
-                                className="inline-flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition"
+                              <button
+                                onClick={() => handleDownload(href || '', typeof children === 'string' ? children : 'file')}
+                                className="inline-flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition cursor-pointer border-none bg-transparent"
                                 title="Tải xuống"
                                 style={{ textDecoration: 'none', alignItems: 'center', display: 'inline-flex' }}
                               >
@@ -167,7 +245,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                                 <span className="text-blue-600 hover:underline font-medium text-base">
                                   {children}
                                 </span>
-                              </a>
+                              </button>
                             );
                           }
                           // Link thông thường
@@ -207,10 +285,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       typeof children[0] === 'object' &&
                       children[0].type === 'a'
                     ) {
-                      return <div className="mb-2 last:mb-0 leading-relaxed">{children}</div>;
+                      return <div className="mb-2 last:mb-0 ">{children}</div>;
                     }
                     // Đoạn văn thông thường
-                    return <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>;
+                    // return <p className="mb-2 last:mb-0 ">{children}</p>;
                   },
 
                   // Unordered list
@@ -264,12 +342,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   ),
                   a: ({ href, children }) => {
                     const isFile = /\.(txt|pdf|docx|xlsx|pptx|zip|rar|json|html)$/i.test(href || '');
-                    if (isFile) {
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    const isDownloadable = isFile || uuidRegex.test(href || '');
+
+                    if (isDownloadable) {
                       return (
-                        <a
-                          href={href}
-                          download
-                          className="inline-flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition"
+                        <button
+                          onClick={() => handleDownload(href || '', typeof children === 'string' ? children : 'file')}
+                          className="inline-flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-100 transition cursor-pointer border-none bg-transparent"
                           title="Tải xuống"
                           style={{ textDecoration: 'none', alignItems: 'center', display: 'inline-flex' }}
                         >
@@ -278,7 +358,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                           <span className="text-blue-600 hover:underline font-medium text-base">
                             {children}
                           </span>
-                        </a>
+                        </button>
                       );
                     }
                     // Link thông thường
