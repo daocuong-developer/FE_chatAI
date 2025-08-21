@@ -1,15 +1,23 @@
 # RAG Chat Application
 
-Ứng dụng chat AI với khả năng RAG (Retrieval-Augmented Generation) cho phép người dùng upload tài liệu và trò chuyện dựa trên nội dung tài liệu đó.
+Hệ thống chat AI với khả năng RAG (Retrieval-Augmented Generation) bao gồm 2 ứng dụng riêng biệt:
+- **Admin App**: Quản lý và upload tài liệu (Port 3001)
+- **User App**: Giao diện chat cho người dùng cuối (Port 3002)
 
 ## Tính năng chính
 
+### Admin App (Port 3001)
 - 📄 **Upload tài liệu**: Tải lên file văn bản (.txt) với mô tả
+- 📚 **Quản lý tài liệu**: Xem lịch sử upload, chọn/bỏ chọn tài liệu
+- 🗑️ **Xóa tài liệu**: Xóa tài liệu không cần thiết
+- 🔄 **Đồng bộ API**: Lấy dữ liệu từ server thay vì localStorage
+
+### User App (Port 3002)
 - 💬 **RAG Chat**: Trò chuyện dựa trên nội dung tài liệu đã upload
 - 🤖 **Chat thường**: Trò chuyện AI không dựa trên tài liệu
-- 📚 **Quản lý tài liệu**: Xem lịch sử upload, chọn/bỏ chọn tài liệu
-- 💾 **Lưu trữ local**: Dữ liệu được lưu trong localStorage
+- 🎤 **Voice Input**: Nhận dạng giọng nói tiếng Việt
 - 🔄 **Đa phiên chat**: Quản lý nhiều cuộc trò chuyện
+- 💾 **Lưu trữ local**: Lịch sử chat được lưu trong localStorage
 
 ## Công nghệ sử dụng
 
@@ -37,7 +45,7 @@ cd rag-chat-app
 
 2. **Chạy ứng dụng**
 ```bash
-# Chạy tất cả services
+# Chạy tất cả services (Admin + User + API)
 docker-compose up -d
 
 # Hoặc chạy và xem logs
@@ -45,7 +53,8 @@ docker-compose up
 ```
 
 3. **Truy cập ứng dụng**
-- Frontend: http://localhost:3000 (Vite dev server)
+- Admin App: http://localhost:3001 (Quản lý tài liệu)
+- User App: http://localhost:3002 (Chat interface)
 - API Mock: http://localhost:8009
 
 4. **Dừng ứng dụng**
@@ -65,8 +74,11 @@ docker-compose up --build
 # Xóa containers và volumes
 docker-compose down -v
 
-# Chỉ chạy frontend
-docker-compose up frontend
+# Chỉ chạy admin app
+docker-compose up admin-app
+
+# Chỉ chạy user app
+docker-compose up user-app
 
 # Chỉ chạy API mock
 docker-compose up json-server
@@ -80,41 +92,60 @@ docker-compose up json-server
 
 #### Các bước thực hiện
 
-1. **Cài đặt dependencies**
+1. **Cài đặt dependencies cho cả 2 app**
 ```bash
-npm install
+# Admin App
+cd admin-app && npm install
+
+# User App  
+cd ../user-app && npm install
 ```
 
-2. **Chạy development server**
-```bash
-npm run dev
-```
-
-3. **Chạy JSON Server (API mock) - Terminal khác**
+2. **Chạy JSON Server (API mock)**
 ```bash
 npx json-server --watch db.json --port 8009
 ```
 
-4. **Truy cập ứng dụng**
-- Frontend: http://localhost:5173
+3. **Chạy Admin App - Terminal khác**
+```bash
+cd admin-app && npm run dev
+```
+
+4. **Chạy User App - Terminal khác**
+```bash
+cd user-app && npm run dev
+```
+
+5. **Truy cập ứng dụng**
+- Admin App: http://localhost:3001
+- User App: http://localhost:3002
 - API Mock: http://localhost:8009
 
 ## Cấu trúc dự án
 
 ```
+├── admin-app/              # Admin application
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── Upload.tsx  # Upload component
+│   │   ├── types/          # TypeScript types
+│   │   ├── utils/          # API utilities
+│   │   └── App.tsx         # Admin App component
+│   ├── Dockerfile          # Docker config for admin
+│   └── package.json        # Admin dependencies
+├── user-app/               # User application
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   │   ├── Chat.tsx    # Chat component
+│   │   │   ├── ChatMessage.tsx
+│   │   │   └── ChunkReference.tsx
+│   │   ├── types/          # TypeScript types
+│   │   ├── utils/          # API utilities
+│   │   └── App.tsx         # User App component
+│   ├── Dockerfile          # Docker config for user
+│   └── package.json        # User dependencies
 ├── src/
-│   ├── components/          # React components
-│   │   ├── Chat.tsx        # Component chat chính
-│   │   ├── ChatMessage.tsx # Component tin nhắn
-│   │   └── Upload.tsx      # Component upload tài liệu
-│   ├── types/              # TypeScript type definitions
-│   ├── utils/              # Utility functions
-│   │   ├── api.ts         # API calls
-│   │   └── uuid.ts        # UUID validation
-│   ├── App.tsx            # Main App component
-│   └── main.tsx           # Entry point
 ├── db.json                # Mock database
-├── Dockerfile             # Docker configuration
 ├── docker-compose.yml     # Docker Compose configuration
 └── README.md             # Documentation
 ```
@@ -167,22 +198,27 @@ GET /api/get_doc_infor?start_index=0&end_index=100&get_content=false
 
 ## Tính năng chi tiết
 
-### Upload Tài liệu
+### Admin App - Quản lý Tài liệu
 - Hỗ trợ drag & drop hoặc click để chọn file
 - Chỉ chấp nhận file .txt
 - Yêu cầu mô tả cho mỗi tài liệu
-- Lưu lịch sử upload với khả năng chọn lại
+- Lấy lịch sử từ API (đồng bộ multi-device)
+- Xóa tài liệu không cần thiết
+- Chọn/bỏ chọn tài liệu cho RAG
 
-### Chat Interface
+### User App - Giao diện Chat
 - 2 chế độ: RAG Chat và Chat thường
 - Quản lý nhiều phiên chat
 - Markdown support cho tin nhắn bot
+- Voice input (nhận dạng giọng nói)
+- ChatGPT-style floating input
 - Lưu trữ lịch sử chat persistent
 
 ### Quản lý Dữ liệu
-- Tất cả dữ liệu lưu trong localStorage
-- Không mất dữ liệu khi reload trang
-- Có thể xóa lịch sử chat/upload
+- Admin: Dữ liệu tài liệu từ API
+- User: Lịch sử chat trong localStorage
+- Đồng bộ multi-device cho tài liệu
+- Persistent chat sessions
 
 ## Troubleshooting
 
@@ -190,29 +226,49 @@ GET /api/get_doc_infor?start_index=0&end_index=100&get_content=false
 
 1. **Port đã được sử dụng**
 ```bash
-# Thay đổi port trong docker-compose.yml
-ports:
-  - "3001:5173"  # Thay vì 3000:5173
+# Thay đổi port trong docker-compose.yml nếu cần
+admin-app:
+  ports:
+    - "3003:3001"  # Thay vì 3001:3001
+user-app:
+  ports:
+    - "3004:3002"  # Thay vì 3002:3002
 ```
 
 2. **API không kết nối được**
 - Kiểm tra JSON server đang chạy trên port 8009
-- Kiểm tra proxy config trong vite.config.ts
+- Kiểm tra proxy config trong cả 2 vite.config.ts
 
 3. **Build lỗi**
 ```bash
-# Xóa node_modules và reinstall
-rm -rf node_modules package-lock.json
-npm install
+# Xóa node_modules và reinstall cho cả 2 app
+cd admin-app && rm -rf node_modules package-lock.json && npm install
+cd ../user-app && rm -rf node_modules package-lock.json && npm install
 ```
 
 ### Development Tips
 
-- Sử dụng React DevTools để debug
-- Kiểm tra Network tab để xem API calls
-- Xem localStorage trong Browser DevTools
+- Admin App: Focus vào upload/document management
+- User App: Focus vào chat experience
+- Kiểm tra Network tab để xem API calls ở cả 2 app
+- Admin localStorage: selected document IDs
+- User localStorage: chat sessions
 - Logs của Docker: `docker-compose logs -f`
-- Hot reload được bật trong Docker development mode
+- Hot reload cho cả 2 apps trong Docker
+
+## Phân quyền
+
+### Admin App (Port 3001)
+- Dành cho quản trị viên
+- Upload và quản lý tài liệu
+- Xem tất cả file đã upload
+- Xóa tài liệu không cần thiết
+
+### User App (Port 3002)  
+- Dành cho người dùng cuối
+- Chỉ chat với AI
+- Không thể upload/xóa tài liệu
+- Trải nghiệm chat tối ưu
 
 ## Đóng góp
 
