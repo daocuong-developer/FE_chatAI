@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Upload as UploadIcon, MessageSquare } from 'lucide-react';
-import { Upload } from './components/Upload';
-import { Chat } from './components/Chat';
+import { Upload } from './ui/Upload';
+import { Chat } from './ui/Chat';
 import { Document } from './types';
 
 function App() {
