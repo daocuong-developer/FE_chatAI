@@ -118,9 +118,19 @@ export function Chat({ documents }: ChatProps) {
   }, [activeChat?.messages]);
 
   const createNewChat = () => {
+    // Tìm số lớn nhất trong tên các chat hiện có
+    const existingNumbers = chatSessions
+      .map(session => {
+        const match = session.title.match(/^Chat (\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => num > 0);
+
+    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+
     const newChat: ChatSession = {
       id: Date.now().toString(),
-      title: `Chat ${chatSessions.length + 1}`,
+      title: `Chat ${nextNumber}`,
       messages: [],
       createdAt: new Date(),
     };
@@ -150,13 +160,27 @@ export function Chat({ documents }: ChatProps) {
   };
 
   const clearAllChats = () => {
+    console.log('clearAllChats called');
     if (confirm('Bạn có chắc chắn muốn xóa tất cả cuộc trò chuyện?')) {
+      console.log('User confirmed deletion');
       setChatSessions([]);
       setActiveChatId('');
       localStorage.removeItem('chatSessions');
       localStorage.removeItem('activeChatId');
-      // Tạo chat mới sau khi xóa tất cả
-      setTimeout(() => createNewChat(), 100);
+      // Tạo chat mới với số 1 sau khi xóa tất cả
+      setTimeout(() => {
+        console.log('Creating new chat after clear');
+        const newChat: ChatSession = {
+          id: Date.now().toString(),
+          title: 'Chat 1',
+          messages: [],
+          createdAt: new Date(),
+        };
+        setChatSessions([newChat]);
+        setActiveChatId(newChat.id);
+      }, 100);
+    } else {
+      console.log('User cancelled deletion');
     }
   };
 
@@ -348,14 +372,14 @@ export function Chat({ documents }: ChatProps) {
       {/* Chat Sessions */}
       <div className="flex-1 overflow-y-auto">
         {chatSessions.map((session) => (
-          <button
+          <div
             key={session.id}
-            onClick={() => setActiveChatId(session.id)}
-            className={`w-full text-left p-3 border-b border-gray-100 transition-all duration-200 ${
-              activeChatId === session.id 
-                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm' 
+            className={`w-full text-left p-3 border-b border-gray-100 transition-all duration-200 cursor-pointer ${
+              activeChatId === session.id
+                ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm'
                 : 'hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50'
             }`}
+            onClick={() => setActiveChatId(session.id)}
           >
             <div className="flex items-center gap-2 group">
               <MessageSquare size={16} className="text-gray-400" />
@@ -381,7 +405,7 @@ export function Chat({ documents }: ChatProps) {
                 </button>
               )}
             </div>
-          </button>
+          </div>
         ))}
       </div>
     </>
@@ -450,71 +474,75 @@ export function Chat({ documents }: ChatProps) {
         </div>
 
         {/* ChatGPT-style Floating Input Area */}
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto p-4">
-            <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-2">
-              <div className="flex items-end gap-3">
-                {/* Voice Recognition Button */}
-                <button
-                  onClick={toggleVoiceRecognition}
-                  disabled={!recognition}
-                  className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
-                    isListening
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-                  } ${!recognition ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
-                  title={isListening ? 'Đang nghe...' : 'Nhấn để nói'}
-                >
-                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                </button>
+<div
+  className={`fixed bottom-0 transition-all duration-300 bg-gradient-to-t from-white via-white/95 to-transparent backdrop-blur-sm`}
+  style={{
+    left: isSidebarOpen ? "320px" : "0px", // né sidebar khi mở
+    right: 0,
+  }}
+>
+  <div className="max-w-4xl mx-auto p-4">
+    <div className="bg-white rounded-3xl shadow-2xl border border-gray-200/50 p-2">
+      <div className="flex items-end gap-3">
+        {/* Voice Recognition Button */}
+        <button
+          onClick={toggleVoiceRecognition}
+          disabled={!recognition}
+          className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+            isListening
+              ? "bg-red-500 text-white animate-pulse"
+              : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+          } ${!recognition ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
+          title={isListening ? "Đang nghe..." : "Nhấn để nói"}
+        >
+          {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+        </button>
 
-                {/* Text Input */}
-            <textarea
-              ref={textareaRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-                  placeholder="Nhập tin nhắn hoặc nhấn mic để nói..."
-              rows={1}
-                  className="flex-1 px-4 py-3 bg-transparent border-none resize-none focus:outline-none placeholder-gray-500 text-gray-900 max-h-32 overflow-y-auto"
-              style={{
-                    minHeight: '24px',
-              }}
-            />
+        {/* Text Input */}
+        <textarea
+          ref={textareaRef}
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="Nhập tin nhắn hoặc nhấn mic để nói..."
+          rows={1}
+          className="flex-1 px-4 py-3 bg-transparent border-none resize-none focus:outline-none placeholder-gray-500 text-gray-900 max-h-32 overflow-y-auto"
+          style={{ minHeight: "24px" }}
+        />
 
-                {/* Send Button */}
-            <button
-              onClick={sendMessage}
-              disabled={!inputMessage.trim() || isLoading}
-                  className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
-                    inputMessage.trim() && !isLoading
-                      ? 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-105 shadow-lg'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                  title="Gửi tin nhắn"
-            >
-                  <Send size={20} />
-            </button>
-          </div>
-            </div>
-            
-            {/* Status indicators */}
-            <div className="flex justify-center mt-2">
-              {isListening && (
-                <div className="flex items-center gap-2 text-red-500 text-sm">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  Đang nghe...
-                </div>
-              )}
-              {isLoading && (
-                <div className="flex items-center gap-2 text-blue-500 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  AI đang trả lời...
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Send Button */}
+        <button
+          onClick={sendMessage}
+          disabled={!inputMessage.trim() || isLoading}
+          className={`flex-shrink-0 p-3 rounded-2xl transition-all duration-300 ${
+            inputMessage.trim() && !isLoading
+              ? "bg-blue-500 hover:bg-blue-600 text-white hover:scale-105 shadow-lg"
+              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+          }`}
+          title="Gửi tin nhắn"
+        >
+          <Send size={20} />
+        </button>
+      </div>
+    </div>
+
+    {/* Status indicators */}
+    <div className="flex justify-center mt-2">
+      {isListening && (
+        <div className="flex items-center gap-2 text-red-500 text-sm">
+          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+          Đang nghe...
         </div>
+      )}
+      {isLoading && (
+        <div className="flex items-center gap-2 text-blue-500 text-sm">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+          AI đang trả lời...
+        </div>
+      )}
+    </div>
+  </div>
+</div>
       </div>
     </div>
   );
