@@ -1,144 +1,83 @@
-import { ApiResponse, InsertDocumentResponse } from '../types';
-import { isUuid } from '../utils/uuid'; // regex check UUID
+import React, { useState } from 'react';
+import { Upload as UploadIcon, MessageSquare } from 'lucide-react';
+import { Upload } from './ui/Upload';
+import { Chat } from './ui/Chat';
+import { Document } from './types';
 
-const API_BASE_URL = '/api'; // endpoint chung
-
-export const api = {
-  // 1. Đẩy nội dung văn bản
-  async insertDocument(
-    content: string,
-    description: string,
-    fileName: string,
-    fileSize: string
-  ): Promise<InsertDocumentResponse> {
-    const response = await fetch(`${API_BASE_URL}/insert_document`, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        metadata: { 
-          describe: description,
-          file_name: fileName,
-          file_size: fileSize,
-        },
-        content,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-  },
-
-  // 2. RAG chat
-  async ragChat(
-    message: string,
-    sessionId: string | null = null, // null -> chat mới
-    fileIds: string[] = [],
-    topK: number = 5
-  ): Promise<ApiResponse> {
-    // Làm sạch file_ids
-    const cleanFileIds = (fileIds ?? [])
-      .filter(Boolean)
-      .map(id => id.trim())
-      .filter(isUuid);
-
-    const payload: Record<string, any> = { message, top_k: topK };
-
-    // Chỉ gửi session_id nếu hợp lệ
-    if (isUuid(sessionId)) {
-      payload.session_id = sessionId!.trim();
-    }
-    if (cleanFileIds.length > 0) {
-      payload.file_ids = cleanFileIds;
-    }
-
-    const res = await fetch(`${API_BASE_URL}/rag_chat`, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      let detail = '';
+function App() {
+  const [activeTab, setActiveTab] = useState<'upload' | 'chat'>('upload');
+  const [documents, setDocuments] = useState<Document[]>(() => {
+    // Khôi phục documents từ localStorage khi khởi tạo App
+    const saved = localStorage.getItem('selectedDocuments');
+    if (saved) {
       try {
-        const err = await res.json();
-        detail = err?.detail ? ` – ${JSON.stringify(err.detail)}` : '';
-      } catch {}
-      throw new Error(`HTTP ${res.status}${detail}`);
-    }
-
-    const data = await res.json();
-    return data;
-  },
-
-  // 3. Chat thường
-  async chat(message: string, sessionId: string): Promise<ApiResponse> {
-    const payload = { session_id: sessionId, message };
-
-    const response = await fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: { 
-        accept: 'application/json',
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-  },
-
-  // 4. Lấy danh sách văn bản đã đẩy
-  async getDocInfor(startIndex = 0, endIndex = 100, getContent = false) {
-    const url = `${API_BASE_URL}/insert_document`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { accept: 'application/json' },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return response.json();
-  },
-
-// 5. Xóa văn bản
-  async removeDocument(docId: string): Promise<ApiResponse> {
-    // Kiểm tra xem docId có phải là UUID hợp lệ không
-    if (!isUuid(docId)) {
-      throw new Error('Invalid doc_id format. Must be a valid UUID.');
-    }
-
-    const url = `${API_BASE_URL}/remove_doc?doc_id=${docId}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      // Cố gắng đọc chi tiết lỗi nếu có
-      let detail = '';
-      try {
-        const errorData = await response.json();
-        detail = errorData?.detail ? ` – ${JSON.stringify(errorData.detail)}` : '';
-      } catch (e) {
-        // Bỏ qua nếu không thể phân tích JSON
+        return JSON.parse(saved).map((doc: any) => ({
+          ...doc,
+          uploadedAt: new Date(doc.uploadedAt)
+        }));
+      } catch (error) {
+        console.error('Error loading documents:', error);
       }
-      throw new Error(`HTTP error! status: ${response.status}${detail}`);
     }
+    return [];
+  });
 
-    // API xóa có thể trả về một đối tượng rỗng hoặc thông báo thành công
-    return response.json();
-  },
-};
+  // Lưu documents vào localStorage mỗi khi thay đổi
+  React.useEffect(() => {
+    localStorage.setItem('selectedDocuments', JSON.stringify(documents));
+  }, [documents]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation */}
+      <nav className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                <MessageSquare size={20} className="text-white" />
+              </div>
+              <h1 className="text-xl font-bold text-gray-900">Chat AI</h1>
+            </div>
+
+            <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setActiveTab('upload')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'upload'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <UploadIcon size={16} />
+                Tải tài liệu
+              </button>
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'chat'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <MessageSquare size={16} />
+                Trò chuyện ({documents.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="flex-1">
+        {activeTab === 'upload' ? (
+          <Upload documents={documents} setDocuments={setDocuments} />
+        ) : (
+          <Chat documents={documents} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;
