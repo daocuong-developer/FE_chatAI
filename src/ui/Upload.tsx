@@ -34,31 +34,36 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     try {
       const apiResponse = await api.getDocInfor(0, 100, false);
       console.log("API response:", apiResponse);
-      // Xử lý response từ API - có thể là array trực tiếp hoặc object chứa array
-      const remoteDocs = Array.isArray(apiResponse) 
-        ? apiResponse 
+
+      // Đúng trường docs từ API
+      const remoteDocs = Array.isArray(apiResponse.docs)
+        ? apiResponse.docs
         : (Array.isArray(apiResponse.documents) ? apiResponse.documents : []);
 
       const processedDocs = remoteDocs.map((doc: any) => {
-        // Xử lý uploadedAt từ nhiều trường có thể có
         let uploadedAt: Date;
         if (doc.uploadedAt) {
-          uploadedAt = typeof doc.uploadedAt === 'string' ? new Date(doc.uploadedAt) : doc.uploadedAt;
+          uploadedAt = new Date(doc.uploadedAt);
         } else if (doc.created_at) {
-          uploadedAt = typeof doc.created_at === 'string' ? new Date(doc.created_at) : doc.created_at;
+          uploadedAt = new Date(doc.created_at);
         } else {
-          uploadedAt = new Date();
+          uploadedAt = new Date(); 
         }
 
+        // Sử dụng describe làm tên tài liệu
+        const fileName = doc.describe || "Không rõ tên tài liệu";
+
         return {
-          id: doc.id || doc.doc_id,
-          name: doc.name || doc.file_name || doc.filename || 'Tên không xác định',
-          description: doc.description || (doc.metadata && doc.metadata.describe) || 'Mô tả không có',
-          uploadedAt,
+          id: doc.doc_id,
+          name: fileName,
+          description: doc.describe || "Không có mô tả",
+          uploadedAt: uploadedAt,
         };
       }).sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
 
-      // Cập nhật state
+      // Log dữ liệu đã mapping để kiểm tra
+      console.log("Processed docs for sidebar:", processedDocs);
+
       setUploadHistory(processedDocs);
       
       // Load selected documents từ localStorage (nếu có)
@@ -104,10 +109,11 @@ export function Upload({ documents, setDocuments }: UploadProps) {
   }, [selectedHistoryIds, isInitialized]);
 
   const handleFileSelect = (file: File) => {
-    if (file.type !== 'text/plain') {
+    const allowedTypes = ['text/plain', 'text/html'];
+    if (!allowedTypes.includes(file.type)) {
       setUploadStatus({
         type: 'error',
-        message: 'Chỉ chấp nhận file văn bản (.txt)',
+        message: 'Chỉ chấp nhận file văn bản (.txt) hoặc HTML (.html)',
       });
       return;
     }
@@ -150,26 +156,19 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     setUploadStatus({ type: null, message: '' });
 
     try {
-      const content = await selectedFile.text();
-      const response = await api.insertDocument(content, description.trim(), selectedFile.name, selectedFile.size.toString());
+      const response = await api.uploadFile(selectedFile, description.trim());
 
       const newDocument: Document = {
         id: response.doc_id,
-        name: selectedFile.name,
+        name: description.trim(),
         description: description.trim(),
         uploadedAt: new Date(),
       };
 
-      // Reload toàn bộ danh sách từ API để đảm bảo đồng bộ
-      await loadDocumentsFromAPI();
-      
-      // Tự động chọn file vừa upload
+      // Cập nhật UI ngay lập tức sau khi upload thành công
+      setUploadHistory(prev => [newDocument, ...prev]);
       setSelectedHistoryIds(prev => new Set([...prev, newDocument.id]));
-      
-      // Thêm vào documents nếu chưa có
-      if (!documents.find(d => d.id === newDocument.id)) {
-        setDocuments(prev => [newDocument, ...prev]);
-      }
+      setDocuments(prev => [newDocument, ...prev]);
 
 
       setSelectedFile(null);
@@ -217,33 +216,57 @@ export function Upload({ documents, setDocuments }: UploadProps) {
     }
   };
 
-  const clearHistory = () => {
-    if (confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử upload?')) {
-      setUploadHistory([]);
-      setSelectedHistoryIds(new Set());
-      setDocuments([]);
+  const clearHistory = async () => {
+    const confirmed = window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử upload? Thao tác này sẽ xóa tất cả file khỏi máy chủ và không thể hoàn tác!');
+    if (confirmed) {
+      setIsLoadingHistory(true);
+      setUploadStatus({ type: null, message: '' });
+
+      try {
+        // Xóa từng document trong API
+        const deletePromises = uploadHistory.map(doc => api.removeDocument(doc.id));
+        await Promise.all(deletePromises);
+
+        // Cập nhật UI sau khi xóa thành công
+        setUploadHistory([]);
+        setSelectedHistoryIds(new Set());
+        setDocuments([]);
+
+        setUploadStatus({
+          type: 'success',
+          message: `Đã xóa thành công ${uploadHistory.length} tài liệu khỏi máy chủ và lịch sử.`,
+        });
+      } catch (error) {
+        console.error('Lỗi khi xóa tất cả tài liệu:', error);
+        setUploadStatus({
+          type: 'error',
+          message: error instanceof Error ? `Không thể xóa tất cả tài liệu: ${error.message}` : 'Có lỗi xảy ra khi xóa tài liệu.',
+        });
+        // Reload lại danh sách để đồng bộ với trạng thái thực tế trên server
+        await loadDocumentsFromAPI();
+      } finally {
+        setIsLoadingHistory(false);
+      }
     }
   };
   
   const deleteFromHistory = async (docId: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử và từ máy chủ?')) {
+    // Thay thế alert bằng một modal hoặc UI message để tránh lỗi trong iframe
+    const confirmed = window.confirm('Bạn có chắc chắn muốn xóa tài liệu này khỏi lịch sử và từ máy chủ?');
+    if (confirmed) {
       try {
         // Gọi API để xóa document
         await api.removeDocument(docId);
-        
-        // Reload danh sách từ API
-        await loadDocumentsFromAPI();
-        
-        // Cập nhật selection
+
+        // Cập nhật UI ngay lập tức sau khi xóa thành công
+        setUploadHistory(prev => prev.filter(doc => doc.id !== docId));
         setSelectedHistoryIds(prev => {
           const newSet = new Set(prev);
           newSet.delete(docId);
           return newSet;
         });
-        
-        // Cập nhật documents
-        setDocuments(documents.filter(doc => doc.id !== docId));
-        
+        setDocuments(prev => prev.filter(doc => doc.id !== docId));
+
         setUploadStatus({
           type: 'success',
           message: 'Tài liệu đã được xóa thành công khỏi máy chủ và lịch sử.',
@@ -257,6 +280,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
       }
     }
   };
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       {/* Main Content */}
@@ -284,7 +308,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                 Kéo thả file hoặc click để chọn file
               </p>
               <p className="text-sm text-gray-500 mb-4">
-                Chỉ hỗ trợ file văn bản (.txt)
+                Hỗ trợ file văn bản (.txt) và HTML (.html)
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -295,7 +319,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,text/plain"
+                accept=".txt,.html,text/plain,text/html"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -377,19 +401,23 @@ export function Upload({ documents, setDocuments }: UploadProps) {
               <div className="space-y-3">
                 {documents.map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg shadow-sm">
-                    <div className="flex items-center gap-3 flex-1">
-                      <File size={20} className="text-green-600" />
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <File size={20} className="text-green-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 truncate">{doc.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
+                        <h3 className="font-medium text-gray-900 truncate">
+                          {doc.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1 whitespace-normal break-words leading-5">
+                          {doc.description}
+                        </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          ID: {doc.id} • Tải lên: {doc.uploadedAt.toLocaleString()}
+                          Tải lên: {doc.uploadedAt.toLocaleString()}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={() => removeDocument(doc.id)}
-                      className="text-red-500 hover:text-red-700 p-1 rounded transition-all duration-200 hover:bg-red-50"
+                      className="text-red-500 hover:text-red-700 p-1 rounded transition-all duration-200 hover:bg-red-50 flex-shrink-0"
                       title="Bỏ chọn tài liệu"
                     >
                       <X size={16} />
@@ -410,15 +438,7 @@ export function Upload({ documents, setDocuments }: UploadProps) {
             <History size={20} className="text-gray-600" />
             <h2 className="font-semibold text-gray-700">Lịch sử upload</h2>
           </div>
-          {uploadHistory.length > 0 && (
-            <button
-              onClick={clearHistory}
-              className="text-red-500 hover:text-red-700 text-sm hover:bg-red-50 px-2 py-1 rounded transition-all duration-200"
-              title="Xóa toàn bộ lịch sử"
-            >
-              Xóa tất cả
-            </button>
-          )}
+          {/* Xóa nút xóa tất cả ��� đây */}
         </div>
 
         {/* History List */}
@@ -459,15 +479,14 @@ export function Upload({ documents, setDocuments }: UploadProps) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <File size={14} className={isSelected ? 'text-blue-600' : 'text-gray-500'} />
-                          <h3 className="font-medium text-sm text-gray-900 truncate">
+                          <h3 className="font-medium text-sm text-gray-900 truncate max-w-[160px]">
                             {doc.name}
                           </h3>
                         </div>
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                        <p className="text-xs text-gray-600 mb-2 whitespace-normal break-words leading-4">
                           {doc.description}
                         </p>
                         <div className="text-xs text-gray-500">
-                          <p>ID: {doc.id ? doc.id.substring(0, 8) : ''}...</p>
                           <p>
                             {doc.uploadedAt instanceof Date
                               ? `${doc.uploadedAt.toLocaleDateString()} ${doc.uploadedAt.toLocaleTimeString()}`
@@ -503,23 +522,60 @@ export function Upload({ documents, setDocuments }: UploadProps) {
           <div className="text-sm text-gray-600">
             <p>Tổng: {uploadHistory.length} file</p>
             <p>Đã chọn: {selectedHistoryIds.size} file</p>
-            <button
-              onClick={loadDocumentsFromAPI}
-              disabled={isLoadingHistory}
-              className="mt-2 text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1 transition-colors"
-            >
-              {isLoadingHistory ? (
-                <>
-                  <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  Đang tải...
-                </>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={loadDocumentsFromAPI}
+                disabled={isLoadingHistory}
+                className="text-blue-500 hover:text-blue-700 text-xs flex items-center gap-1 transition-colors"
+              >
+                {isLoadingHistory ? (
+                  <>
+                    <div className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    Đang tải...
+                  </>
+                ) : (
+                  <>
+                    <History size={12} />
+                    Làm mới
+                  </>
+                )}
+              </button>
+              {/* Nút chọn/bỏ tất cả */}
+              {selectedHistoryIds.size === uploadHistory.length ? (
+                <button
+                  onClick={() => {
+                    setSelectedHistoryIds(new Set());
+                    setDocuments([]);
+                  }}
+                  disabled={uploadHistory.length === 0}
+                  className="text-indigo-500 hover:text-indigo-700 text-xs flex items-center gap-1 transition-colors"
+                >
+                  Bỏ tất cả
+                </button>
               ) : (
-                <>
-                  <History size={12} />
-                  Làm mới
-                </>
+                <button
+                  onClick={() => {
+                    const allIds = new Set(uploadHistory.map(doc => doc.id));
+                    setSelectedHistoryIds(allIds);
+                    setDocuments([...uploadHistory]);
+                  }}
+                  disabled={uploadHistory.length === 0}
+                  className="text-indigo-500 hover:text-indigo-700 text-xs flex items-center gap-1 transition-colors"
+                >
+                  Chọn tất cả
+                </button>
               )}
-            </button>
+              {/* Nút xóa tất cả */}
+              <button
+                onClick={clearHistory}
+                disabled={uploadHistory.length === 0}
+                className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 transition-colors"
+                title="Xóa toàn bộ lịch sử"
+              >
+                <X size={12} />
+                Xóa tất cả
+              </button>
+            </div>
           </div>
         </div>
       </div>
