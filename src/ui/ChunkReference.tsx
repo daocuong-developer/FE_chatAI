@@ -10,6 +10,8 @@ interface ChunkInfo {
   text: string;
   filename: string;
   file_url?: string;
+  doc_describe: string;
+  doc_id?: string;
 }
 
 export function ChunkReference({ chunkId }: ChunkReferenceProps) {
@@ -42,18 +44,37 @@ export function ChunkReference({ chunkId }: ChunkReferenceProps) {
 
   const handleDownload = async () => {
     if (!chunkInfo) return;
-    
+
+    console.log('Downloading file for chunk:', chunkId);
+    console.log('Chunk info:', chunkInfo);
+
     try {
-      // Nếu API trả về file_url thì download trực tiếp
-      if (chunkInfo.file_url) {
+      // Nếu có doc_id, sử dụng API download mới
+      if (chunkInfo.doc_id) {
+        console.log('Using downloadFile API with doc_id:', chunkInfo.doc_id);
+        const blob = await api.downloadFile(chunkInfo.doc_id);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = chunkInfo.filename || 'downloaded-file';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+      // Fallback: Nếu API trả về file_url thì download trực tiếp
+      else if (chunkInfo.file_url) {
+        console.log('Using direct file_url:', chunkInfo.file_url);
         const link = document.createElement('a');
         link.href = chunkInfo.file_url;
         link.download = chunkInfo.filename || 'chunk-file';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else {
-        // Nếu không có file_url, tạo file từ text content
+      }
+      // Fallback cuối: Tạo file từ text content
+      else {
+        console.log('Creating file from text content');
         const blob = new Blob([chunkInfo.text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -66,6 +87,7 @@ export function ChunkReference({ chunkId }: ChunkReferenceProps) {
       }
     } catch (err) {
       console.error('Error downloading file:', err);
+      alert('Không thể tải xuống file. Vui lòng thử lại.');
     }
   };
 
@@ -128,12 +150,12 @@ export function ChunkReference({ chunkId }: ChunkReferenceProps) {
       {/* Tooltip */}
       {showTooltip && (
         <div
-          className="absolute z-50 bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-96 max-w-lg"
+          className="absolute z-50 top-0 left-full ml-2 w-[600px] max-w-2xl max-h-28"
           onMouseEnter={handleTooltipMouseEnter}
           onMouseLeave={handleTooltipMouseLeave}
         >
           <div className="bg-white text-gray-900 text-sm rounded-lg p-4 shadow-2xl border border-gray-200">
-            <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white"></div>
+            <div className="absolute top-4 right-full w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-white"></div>
 
             {isLoading ? (
               <div className="flex items-center gap-2 text-gray-600">
@@ -142,13 +164,13 @@ export function ChunkReference({ chunkId }: ChunkReferenceProps) {
               </div>
             ) : error ? (
               <div className="text-red-600">
-                Lỗi: {error}
+                Lỗi: Không có thông tin 
               </div>
             ) : chunkInfo ? (
               <div className="space-y-3">
                 <div>
                   <span className="font-semibold text-gray-700">File:</span>{' '}
-                  <span className="text-gray-900">{chunkInfo.filename}</span>
+                  <span className="text-gray-900">{chunkInfo.doc_describe}</span>
                 </div>
                 <div>
                   <span className="font-semibold text-gray-700">Nội dung:</span>
